@@ -549,6 +549,20 @@ function Chat() {
 
   const isStreaming = status === "streaming" || status === "submitted";
 
+  const handleClear = useCallback(async () => {
+    clearHistory();
+    setSelectedSwarmRunId(undefined);
+    setSelectedWorkUnitId(undefined);
+    setSwarmInspection(undefined);
+    setInspectError(undefined);
+
+    try {
+      await agent.stub.clearSwarms();
+    } catch (error) {
+      console.error("Failed to clear swarms:", error);
+    }
+  }, [agent, clearHistory]);
+
   const handleCancelSwarm = useCallback(
     async (runId: string) => {
       try {
@@ -911,7 +925,7 @@ function Chat() {
             <Button
               variant="secondary"
               icon={<TrashIcon size={16} />}
-              onClick={clearHistory}
+              onClick={handleClear}
             >
               Clear
             </Button>

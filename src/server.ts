@@ -222,6 +222,48 @@ export class ChatAgent extends AIChatAgent<Env, SwarmState> {
     return { run, workers };
   }
 
+  @callable()
+  async clearSwarms() {
+    const runs = Object.values(this.state.runs ?? {});
+    const retainedSwarmFibers = await Promise.all([
+      this.listFibers({ name: SWARM_FIBER_NAME, limit: 500 }),
+      this.listFibers({ name: SWARM_WORKER_FIBER_NAME, limit: 500 })
+    ]);
+    const retainedFiberIds = new Set(
+      retainedSwarmFibers.flat().map((fiber) => fiber.fiberId)
+    );
+
+    await Promise.allSettled([
+      ...runs.map(async (run) => {
+        if (!["planning", "running", "synthesizing"].includes(run.status)) {
+          return;
+        }
+        await this.cancelFiberByKey(
+          `swarm:${run.runId}`,
+          "User cleared swarms"
+        );
+        await this.cancelWorkerFibers(run.runId, run.workUnits);
+      }),
+      ...Array.from(retainedFiberIds).map((fiberId) =>
+        this.cancelFiber(fiberId, "User cleared swarms")
+      )
+    ]);
+
+    this.setState({
+      ...this.state,
+      runs: {},
+      selectedRunId: undefined
+    });
+
+    this.sql`
+      DELETE FROM cf_agents_fibers
+      WHERE name IN (${SWARM_FIBER_NAME}, ${SWARM_WORKER_FIBER_NAME})
+         OR idempotency_key LIKE 'swarm:%'
+    `;
+
+    return { cleared: runs.length, fibersDeleted: retainedFiberIds.size };
+  }
+
   async onChatMessage(_onFinish: unknown, options?: OnChatMessageOptions) {
     const mcpTools = await this.getFiberAITools();
     const workersai = createWorkersAI({ binding: this.env.AI });
@@ -366,7 +408,9 @@ When you call startSwarm, do not answer the original goal yourself. The swarm ru
         ...extra
       };
       ctx.stash(snapshot);
-      this.setRunState(this.snapshotToRunState(snapshot));
+      if (this.state.runs?.[runId]) {
+        this.setRunState(this.snapshotToRunState(snapshot));
+      }
       return snapshot;
     };
 
@@ -440,6 +484,7 @@ When you call startSwarm, do not answer the original goal yourself. The swarm ru
         completedAt: new Date().toISOString(),
         synthesis
       });
+      if (!this.state.runs?.[runId]) return;
       await this.persistSwarmFollowupMessage(runId, synthesis);
       await this.cleanupSettledFibers();
     } catch (error) {
@@ -550,6 +595,8 @@ When you call startSwarm, do not answer the original goal yourself. The swarm ru
   ) {
     const messageId = `swarm-followup-${runId}`;
     await this.waitUntilStable({ timeout: 30_000 });
+
+    if (!this.state.runs?.[runId]) return;
 
     if (this.messages.some((message) => message.id === messageId)) return;
 
