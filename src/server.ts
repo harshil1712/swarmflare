@@ -229,24 +229,18 @@ export class ChatAgent extends AIChatAgent<Env, SwarmState> {
       this.listFibers({ name: SWARM_FIBER_NAME, limit: 500 }),
       this.listFibers({ name: SWARM_WORKER_FIBER_NAME, limit: 500 })
     ]);
-    const retainedFiberIds = new Set(
-      retainedSwarmFibers.flat().map((fiber) => fiber.fiberId)
-    );
 
     await Promise.allSettled([
       ...runs.map(async (run) => {
-        if (!["planning", "running", "synthesizing"].includes(run.status)) {
-          return;
-        }
         await this.cancelFiberByKey(
           `swarm:${run.runId}`,
           "User cleared swarms"
         );
         await this.cancelWorkerFibers(run.runId, run.workUnits);
       }),
-      ...Array.from(retainedFiberIds).map((fiberId) =>
-        this.cancelFiber(fiberId, "User cleared swarms")
-      )
+      ...retainedSwarmFibers
+        .flat()
+        .map((fiber) => this.cancelFiber(fiber.fiberId, "User cleared swarms"))
     ]);
 
     this.setState({
@@ -255,13 +249,9 @@ export class ChatAgent extends AIChatAgent<Env, SwarmState> {
       selectedRunId: undefined
     });
 
-    this.sql`
-      DELETE FROM cf_agents_fibers
-      WHERE name IN (${SWARM_FIBER_NAME}, ${SWARM_WORKER_FIBER_NAME})
-         OR idempotency_key LIKE 'swarm:%'
-    `;
+    const fibersDeleted = await this.deleteAllTerminalFibers();
 
-    return { cleared: runs.length, fibersDeleted: retainedFiberIds.size };
+    return { cleared: runs.length, fibersDeleted };
   }
 
   async onChatMessage(_onFinish: unknown, options?: OnChatMessageOptions) {
@@ -781,6 +771,20 @@ When you call startSwarm, do not answer the original goal yourself. The swarm ru
       });
     } catch (error) {
       console.warn("Failed to clean up settled swarm fibers", error);
+    }
+  }
+
+  private async deleteAllTerminalFibers() {
+    let deleted = 0;
+
+    while (true) {
+      const batchDeleted = await this.deleteFibers({
+        status: ["completed", "aborted", "interrupted", "error"],
+        limit: 500
+      });
+
+      deleted += batchDeleted;
+      if (batchDeleted === 0) return deleted;
     }
   }
 

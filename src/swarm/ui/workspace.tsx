@@ -17,7 +17,7 @@ export function SwarmWorkspace({
   isInspecting,
   onSelectRun,
   onCancel,
-  onInspectWorkUnit,
+  onInspectWorkUnit
 }: {
   run?: SwarmRunState;
   runs: SwarmRunState[];
@@ -32,7 +32,7 @@ export function SwarmWorkspace({
   if (!run || run.status === "idle") return null;
 
   const canCancel = ["planning", "running", "synthesizing"].includes(
-    run.status,
+    run.status
   );
   const sortedUnits = [...run.workUnits].sort((a, b) => {
     const order: Record<WorkUnitStatus, number> = {
@@ -40,7 +40,7 @@ export function SwarmWorkspace({
       queued: 1,
       failed: 2,
       cancelled: 3,
-      complete: 4,
+      complete: 4
     };
     return order[a.status] - order[b.status];
   });

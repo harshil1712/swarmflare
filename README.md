@@ -1,237 +1,177 @@
-# Agent Starter
+# Swarmflare
 
-![npm i agents command](./npm-agents-banner.svg)
+Swarmflare is a Cloudflare-native demo of an AI chat agent that can split broad goals into a bounded swarm of specialist workers, run those workers in parallel, track progress live in the browser, and synthesize a final answer.
 
-<a href="https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/agents-starter"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare"/></a>
+It is built with the [Cloudflare Agents SDK](https://developers.cloudflare.com/agents/), [Durable Objects](https://developers.cloudflare.com/durable-objects/), [Workers AI](https://developers.cloudflare.com/workers-ai/), React, Vite, and Kumo UI.
 
-A starter template for building AI chat agents on Cloudflare, powered by the [Agents SDK](https://developers.cloudflare.com/agents/).
+## What It Does
 
-Uses Workers AI (no API key required), with tools for weather, timezone detection, calculations with approval, task scheduling, and vision (image input).
+- **Normal chat**: streams assistant responses from a Workers AI model.
+- **Automatic swarm mode**: broad prompts can trigger `startSwarm`, which creates 2-6 focused work units.
+- **Parallel worker fibers**: each work unit runs as a managed Agents SDK fiber with checkpoints.
+- **Live progress UI**: swarm state is persisted in the Agent and synced over the existing WebSocket connection.
+- **Final synthesis**: the coordinator combines worker outputs into a single assistant follow-up message.
+- **Inspectable runs**: the UI can inspect retained fiber state for swarm and worker details.
+- **Image input**: users can attach PNG, JPEG, WebP, or GIF images for vision-capable chat turns.
+- **MCP tools**: users can register MCP servers and make their tools available to the agent.
 
-## Quick start
+## Demo Boundaries
+
+Swarmflare is intentionally scoped as an open-source demo, not a production multi-tenant app.
+
+- The browser connects to `useAgent({ agent: "ChatAgent" })` without a custom `name`.
+- That means all users of the same deployment share the default `ChatAgent` instance.
+- Shared state includes chat history, swarm runs, MCP server registrations, and Durable Object state.
+- There is no authentication, authorization, or per-user isolation in this demo.
+- For production, add per-user or per-conversation Agent names and route-level authorization before launch.
+
+## Current Limits
+
+Application-level demo limits:
+
+- Up to `3` active swarms at once.
+- Up to `6` work units per swarm.
+- Swarm goals up to `4,000` characters.
+- Chat history persists up to `100` messages.
+- Images per message: up to `4`.
+- Image size: up to `5 MB` each and `12 MB` total per message.
+- Supported image types: PNG, JPEG, WebP, GIF.
+
+Platform limits and billing are controlled by your Cloudflare account and plan. Check the current Cloudflare docs before relying on specific numbers:
+
+- [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
+- [Workers AI limits](https://developers.cloudflare.com/workers-ai/platform/limits/)
+- [Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)
+- [Durable Objects limits](https://developers.cloudflare.com/durable-objects/platform/limits/)
+
+## Runtime And Cost Notes
+
+This project uses the Workers AI binding configured in `wrangler.jsonc`:
+
+```jsonc
+"ai": { "binding": "AI", "remote": true }
+```
+
+Because the binding is remote, local development can still call Cloudflare-hosted Workers AI and count against account usage or limits.
+
+The current model is:
+
+```ts
+@cf/moonshotai/kimi-k2.6
+```
+
+A swarm can make multiple model calls: one chat turn to decide and start the swarm, one call per worker, and one synthesis call. MCP tools can add additional network calls depending on the connected servers.
+
+## Quick Start
+
+Install dependencies:
 
 ```bash
-npx create-cloudflare@latest --template cloudflare/agents-starter
-cd agents-starter
 npm install
+```
+
+Run the local dev server:
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) to see your agent in action.
+Open [http://localhost:5173](http://localhost:5173).
 
-Try these prompts to see the different features:
+Try prompts like:
 
-- **"What's the weather in Paris?"** — server-side tool (runs automatically)
-- **"What timezone am I in?"** — client-side tool (browser provides the answer)
-- **"Calculate 5000 \* 3"** — approval tool (asks you before running)
-- **"Remind me in 5 minutes to take a break"** — scheduling
-- **Drop an image and ask "What's in this image?"** — vision (image understanding)
+- `Compare three approaches for adding authentication to this app.`
+- `Review this architecture and identify risks from security, UX, and operations perspectives.`
+- `Plan a migration from a simple chat demo to a multi-user production deployment.`
 
-## Project structure
+For simple questions, the assistant should answer directly. For broader goals, it should start a swarm and later post a synthesized answer.
 
-```
+## Project Structure
+
+```text
 src/
-  server.ts    # Chat agent with tools and scheduling
-  app.tsx      # Chat UI built with Kumo components
-  client.tsx   # React entry point
-  styles.css   # Tailwind + Kumo styles
+  server.ts                ChatAgent, swarm orchestration, MCP, Workers AI calls
+  chat/                    Chat UI, message rendering, image attachments
+  mcp/                     MCP server panel
+  swarm/types.ts           Swarm state and recovery snapshot types
+  swarm/ui/                Swarm workspace and inspection UI
+  app.tsx                  App shell
+  client.tsx               React entry point
+  styles.css               Tailwind and Kumo styles
 ```
 
-## What's included
+## How The Swarm Works
 
-- **AI Chat** — Streaming responses powered by Workers AI via `AIChatAgent`
-- **Image input** — Drag-and-drop, paste, or click to attach images for vision-capable models
-- **Three tool patterns** — server-side auto-execute, client-side (browser), and human-in-the-loop approval
-- **Scheduling** — one-time, delayed, and recurring (cron) tasks
-- **Reasoning display** — shows model thinking as it streams, collapses when done
-- **Debug mode** — toggle in the header to inspect raw message JSON for each message
-- **Kumo UI** — Cloudflare's design system with dark/light mode
-- **Real-time** — WebSocket connection with automatic reconnection and message persistence
+1. The user sends a message through `useAgentChat`.
+2. `ChatAgent.onChatMessage()` streams a Workers AI response.
+3. If the request is broad enough, the model calls the `startSwarm` tool.
+4. `startSwarm()` validates the goal and work units, then starts a managed `swarm-run` fiber.
+5. The coordinator fiber starts one managed `swarm-worker` fiber per work unit.
+6. Each worker generates structured output and checkpoints its status with `ctx.stash()`.
+7. The coordinator polls retained worker fiber state, updates Agent state, and synthesizes a final answer.
+8. The final synthesis is persisted as a follow-up assistant message.
 
-## Making it your own
+The implementation uses public Agents SDK durable execution APIs such as `startFiber()`, `inspectFiberByKey()`, `cancelFiberByKey()`, `listFibers()`, and `deleteFibers()`.
 
-### Name your project
+## MCP Servers
 
-Update the name in `package.json` and `wrangler.jsonc` — the `name` in `wrangler.jsonc` becomes your deployed Worker's URL (`<name>.<subdomain>.workers.dev`).
+The MCP panel lets users add server names and URLs at runtime. Registered MCP servers are part of the shared demo Agent state, so other users of the same deployment can see and use them.
 
-### Change the system prompt
+The Agents SDK performs MCP connection and URL safety checks. This app should still be treated as a demo: do not register sensitive private MCP servers on a public shared deployment.
 
-Edit the `system` string in `server.ts` to give your agent a different personality or focus area. This is the most impactful single change you can make.
+## Images
 
-### Replace the demo tools with real ones
+Images are converted to data URIs before being sent with the chat message. To keep the demo bounded, unsupported or oversized files are rejected in the browser before object URLs or data URIs are created.
 
-The starter ships with demo tools (`getWeather` returns random data, `calculate` does basic arithmetic). Replace them with real implementations:
+If you need production-grade file handling, store uploads in a dedicated object store such as R2 and pass references to the model instead of persisting large data URIs in chat state.
 
-```ts
-// In server.ts, replace a demo tool with a real API call:
-getWeather: tool({
-  description: "Get the current weather for a city",
-  inputSchema: z.object({ city: z.string() }),
-  execute: async ({ city }) => {
-    const res = await fetch(`https://api.weather.example/${city}`);
-    return res.json();
-  }
-}),
-```
-
-### Add your own tools
-
-Add new tools to the `tools` object in `server.ts`. There are three patterns:
-
-```ts
-// Auto-execute: runs on the server, no user interaction
-myTool: tool({
-  description: "...",
-  inputSchema: z.object({ /* ... */ }),
-  execute: async (input) => { /* return result */ }
-}),
-
-// Client-side: no execute function, browser provides the result
-// Handle it in app.tsx via the onToolCall callback
-browserTool: tool({
-  description: "...",
-  inputSchema: z.object({ /* ... */ })
-}),
-
-// Approval: add needsApproval to gate execution
-sensitiveTool: tool({
-  description: "...",
-  inputSchema: z.object({ /* ... */ }),
-  needsApproval: async (input) => true, // or conditional logic
-  execute: async (input) => { /* runs after approval */ }
-}),
-```
-
-### Customize scheduled task behavior
-
-When a scheduled task fires, `executeTask` runs on the server. It does its work and then uses `this.broadcast()` to notify connected clients (shown as a toast notification in the UI). Replace it with your own logic:
-
-```ts
-async executeTask(description: string, task: Schedule<string>) {
-  // Do the actual work
-  await sendEmail({ to: "user@example.com", subject: description });
-
-  // Notify connected clients
-  this.broadcast(
-    JSON.stringify({ type: "scheduled-task", description, timestamp: new Date().toISOString() })
-  );
-}
-```
-
-> **Why `broadcast()` instead of `saveMessages()`?** Injecting into chat history can cause the AI to see the notification as new context and re-trigger the same task in a loop. `broadcast()` sends a one-off event that the client displays separately from the conversation.
-
-### Remove scheduling
-
-If you don't need scheduling, remove `scheduleTask`, `getScheduledTasks`, and `cancelScheduledTask` from the tools object, the `executeTask` method, and the schedule-related imports (`getSchedulePrompt`, `scheduleSchema`, `Schedule`, `generateId`).
-
-### Add state beyond chat messages
-
-Use `this.setState()` and `this.state` for real-time state that syncs to all connected clients. See [Store and sync state](https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/).
-
-### Add callable methods
-
-Expose agent methods as typed RPC that your client can call directly:
-
-```ts
-import { callable } from "agents";
-
-export class ChatAgent extends AIChatAgent<Env> {
-  @callable()
-  async getStats() {
-    return { messageCount: this.messages.length };
-  }
-}
-
-// Client-side:
-const stats = await agent.call("getStats");
-```
-
-See [Callable methods](https://developers.cloudflare.com/agents/api-reference/callable-methods/).
-
-### Connect to MCP servers
-
-Add external tools from MCP servers:
-
-```ts
-async onChatMessage(onFinish, options) {
-  // Connect to an MCP server
-  await this.mcp.connect("https://my-mcp-server.example/sse");
-
-  const result = streamText({
-    // ...
-    tools: {
-      ...myTools,
-      ...this.mcp.getAITools() // Include MCP tools
-    }
-  });
-}
-```
-
-See [MCP Client API](https://developers.cloudflare.com/agents/api-reference/mcp-client-api/).
-
-## Use a different AI model provider
-
-The starter uses [Workers AI](https://developers.cloudflare.com/workers-ai/) by default (no API key needed). To use a different provider:
-
-### OpenAI
+## Useful Commands
 
 ```bash
-npm install @ai-sdk/openai
+npm run dev       # Start the Vite dev server
+npm run deploy    # Build and deploy with Wrangler
+npm run types     # Regenerate Cloudflare environment types
+npm run format    # Format the repo with oxfmt
+npm run lint      # Run oxlint on src/
+npm run check     # Format check, lint, and TypeScript check
 ```
 
-```ts
-// In server.ts, replace the model:
-import { openai } from "@ai-sdk/openai";
-
-// Inside onChatMessage:
-const result = streamText({
-  model: openai("gpt-5.2")
-  // ...
-});
-```
-
-Create a `.env` file with your API key:
-
-```
-OPENAI_API_KEY=your-key-here
-```
-
-### Anthropic
-
-```bash
-npm install @ai-sdk/anthropic
-```
-
-```ts
-import { anthropic } from "@ai-sdk/anthropic";
-
-const result = streamText({
-  model: anthropic("claude-sonnet-4-20250514")
-  // ...
-});
-```
-
-Create a `.env` file with your API key:
-
-```
-ANTHROPIC_API_KEY=your-key-here
-```
+Run `npm run types` after changing Cloudflare bindings in `wrangler.jsonc`.
 
 ## Deploy
+
+Before deploying your fork, set the Worker `name` in `wrangler.jsonc` to the deployment name you want.
+
+Deploy with:
 
 ```bash
 npm run deploy
 ```
 
-Your agent is live on Cloudflare's global network. Messages persist in SQLite, streams resume on disconnect, and the agent hibernates when idle.
+The deployed app runs as a Worker with static assets and a SQLite-backed Durable Object binding for `ChatAgent`.
 
-## Learn more
+## Production Hardening Checklist
+
+Swarmflare intentionally leaves these concerns out of the demo:
+
+- Per-user or per-conversation Agent instance names.
+- Authentication and authorization.
+- Tenant-isolated MCP registrations.
+- Stronger server-side MCP registration policy.
+- File upload storage outside chat payloads.
+- Rate limiting and abuse controls.
+- End-to-end smoke tests for swarm start, cancel, clear, and inspect flows.
+
+## Learn More
 
 - [Agents SDK documentation](https://developers.cloudflare.com/agents/)
-- [Build a chat agent tutorial](https://developers.cloudflare.com/agents/getting-started/build-a-chat-agent/)
-- [Chat agents API reference](https://developers.cloudflare.com/agents/api-reference/chat-agents/)
+- [Agents API reference](https://developers.cloudflare.com/agents/api-reference/agents-api/)
+- [Durable execution](https://developers.cloudflare.com/agents/api-reference/durable-execution/)
+- [Store and sync state](https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/)
+- [MCP Client API](https://developers.cloudflare.com/agents/api-reference/mcp-client-api/)
 - [Workers AI models](https://developers.cloudflare.com/workers-ai/models/)
+- [Durable Objects](https://developers.cloudflare.com/durable-objects/)
 
 ## License
 
-MIT
+MIT. See [LICENSE](./LICENSE).

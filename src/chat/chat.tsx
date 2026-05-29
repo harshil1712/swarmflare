@@ -4,7 +4,7 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
-  type DragEvent,
+  type DragEvent
 } from "react";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
@@ -22,7 +22,7 @@ import {
   StopIcon,
   TrashIcon,
   WrenchIcon,
-  XIcon,
+  XIcon
 } from "@phosphor-icons/react";
 import type { ChatAgent } from "../server";
 import type { SwarmState } from "../swarm/types";
@@ -32,9 +32,10 @@ import { SwarmWorkspace } from "../swarm/ui/workspace";
 import { McpPanel } from "../mcp/mcp-panel";
 import { ThemeToggle } from "../ui/theme-toggle";
 import {
-  createAttachment,
+  ACCEPTED_IMAGE_MIME_TYPES,
+  createValidImageAttachments,
   fileToDataUri,
-  type Attachment,
+  type Attachment
 } from "./attachments";
 import { MessageList } from "./message-parts";
 
@@ -52,7 +53,7 @@ export function Chat() {
     prompts: [],
     resources: [],
     servers: {},
-    tools: [],
+    tools: []
   });
   const [showMcpPanel, setShowMcpPanel] = useState(false);
   const [mcpName, setMcpName] = useState("");
@@ -72,7 +73,7 @@ export function Chat() {
     onClose: useCallback(() => setConnected(false), []),
     onError: useCallback(
       (error: Event) => console.error("WebSocket error:", error),
-      [],
+      []
     ),
     onStateUpdate: useCallback((state: SwarmState) => {
       setSwarmState(state);
@@ -88,15 +89,15 @@ export function Chat() {
             toasts.add({
               title: "Scheduled task completed",
               description: data.description,
-              timeout: 0,
+              timeout: 0
             });
           }
         } catch {
           // Not JSON or not our event
         }
       },
-      [toasts],
-    ),
+      [toasts]
+    )
   });
 
   useEffect(() => {
@@ -143,7 +144,7 @@ export function Chat() {
     clearHistory,
     addToolApprovalResponse,
     stop,
-    status,
+    status
   } = useAgentChat({
     agent,
     onToolCall: async (event) => {
@@ -155,16 +156,16 @@ export function Chat() {
           toolCallId: event.toolCall.toolCallId,
           output: {
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            localTime: new Date().toLocaleTimeString(),
-          },
+            localTime: new Date().toLocaleTimeString()
+          }
         });
       }
-    },
+    }
   });
 
   const isStreaming = status === "streaming" || status === "submitted";
   const swarmRuns = Object.values(swarmState?.runs ?? {}).sort((a, b) =>
-    (b.startedAt ?? "").localeCompare(a.startedAt ?? ""),
+    (b.startedAt ?? "").localeCompare(a.startedAt ?? "")
   );
   const selectedSwarmRun =
     (selectedSwarmRunId ? swarmState?.runs[selectedSwarmRunId] : undefined) ??
@@ -200,7 +201,7 @@ export function Chat() {
         console.error("Failed to cancel swarm:", e);
       }
     },
-    [agent],
+    [agent]
   );
 
   const handleSelectSwarmRun = useCallback((runId: string) => {
@@ -221,13 +222,13 @@ export function Chat() {
         setSwarmInspection(await agent.stub.inspectSwarm(runId));
       } catch (error) {
         setInspectError(
-          error instanceof Error ? error.message : "Failed to inspect swarm",
+          error instanceof Error ? error.message : "Failed to inspect swarm"
         );
       } finally {
         setIsInspectingSwarm(false);
       }
     },
-    [agent, selectedSwarmRunId, swarmState?.selectedRunId],
+    [agent, selectedSwarmRunId, swarmState?.selectedRunId]
   );
 
   useEffect(() => {
@@ -238,7 +239,7 @@ export function Chat() {
       swarmState?.selectedRunId && runs[swarmState.selectedRunId]
         ? swarmState.selectedRunId
         : Object.values(runs).sort((a, b) =>
-            (b.startedAt ?? "").localeCompare(a.startedAt ?? ""),
+            (b.startedAt ?? "").localeCompare(a.startedAt ?? "")
           )[0]?.runId;
 
     if (nextRunId) setSelectedSwarmRunId(nextRunId);
@@ -254,11 +255,23 @@ export function Chat() {
     }
   }, [isStreaming]);
 
-  const addFiles = useCallback((files: FileList | File[]) => {
-    const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    if (images.length === 0) return;
-    setAttachments((prev) => [...prev, ...images.map(createAttachment)]);
-  }, []);
+  const addFiles = useCallback(
+    (files: FileList | File[]) => {
+      const result = createValidImageAttachments(files, attachments);
+
+      if (result.errors.length > 0) {
+        toasts.add({
+          title: "Some images were not attached",
+          description: result.errors.join(" ")
+        });
+      }
+
+      if (result.attachments.length > 0) {
+        setAttachments((prev) => [...prev, ...result.attachments]);
+      }
+    },
+    [attachments, toasts]
+  );
 
   const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => {
@@ -287,7 +300,7 @@ export function Chat() {
       setIsDragging(false);
       if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
     },
-    [addFiles],
+    [addFiles]
   );
 
   const handlePaste = useCallback(
@@ -306,7 +319,7 @@ export function Chat() {
         addFiles(files);
       }
     },
-    [addFiles],
+    [addFiles]
   );
 
   const send = useCallback(async () => {
@@ -337,7 +350,7 @@ export function Chat() {
       if (isStreaming) return;
       sendMessage({ role: "user", parts: [{ type: "text", text: prompt }] });
     },
-    [isStreaming, sendMessage],
+    [isStreaming, sendMessage]
   );
 
   return (
@@ -481,7 +494,7 @@ export function Chat() {
             ref={fileInputRef}
             type="file"
             multiple
-            accept="image/*"
+            accept={ACCEPTED_IMAGE_MIME_TYPES.join(",")}
             aria-label="Upload image attachments"
             className="hidden"
             onChange={(e) => {
