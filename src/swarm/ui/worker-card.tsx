@@ -19,10 +19,13 @@ export function SwarmWorkerCard({
       onClick={() => onInspect(unit.id)}
     >
       <div className="swarm-worker-card__topline">
-        <span>{unit.role}</span>
+        <span>{unit.employeeName ?? unit.role}</span>
         <Badge variant={getStatusVariant(unit.status)}>{unit.status}</Badge>
       </div>
       <h4>{unit.title}</h4>
+      {unit.employeeName && (
+        <span className="swarm-worker-card__meta">{unit.role}</span>
+      )}
       {unit.objective && <p>{unit.objective}</p>}
       {unit.summary && (
         <p className="swarm-worker-card__summary">{unit.summary}</p>

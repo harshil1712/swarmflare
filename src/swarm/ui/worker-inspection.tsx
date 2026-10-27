@@ -20,10 +20,10 @@ export function WorkerInspection({
     return (
       <Surface className="swarm-detail-card">
         <Text size="sm" bold>
-          Worker inspection
+          Employee inspection
         </Text>
         <Text size="xs" variant="secondary">
-          Select a worker to inspect its objective, findings, confidence, and
+          Select an employee to inspect its objective, findings, confidence, and
           durable trace.
         </Text>
       </Surface>
@@ -42,11 +42,11 @@ export function WorkerInspection({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Text size="sm" bold>
-            {unit?.title ?? "Worker inspection"}
+            {unit?.employeeName ?? unit?.title ?? "Employee inspection"}
           </Text>
           {unit?.role && (
             <Text size="xs" variant="secondary">
-              {unit.role}
+              {unit.employeeName ? `${unit.role} - ${unit.title}` : unit.role}
             </Text>
           )}
         </div>
@@ -57,7 +57,7 @@ export function WorkerInspection({
 
       {isInspecting ? (
         <Text size="xs" variant="secondary">
-          Loading worker trace...
+          Loading employee trace...
         </Text>
       ) : inspectError ? (
         <Text size="xs" variant="secondary">
@@ -79,7 +79,7 @@ export function WorkerInspection({
           )}
           {unit?.output?.answer && (
             <div>
-              <div className="swarm-detail-label">Worker answer</div>
+              <div className="swarm-detail-label">Employee answer</div>
               <p className="swarm-detail-copy">{unit.output.answer}</p>
             </div>
           )}
@@ -89,6 +89,46 @@ export function WorkerInspection({
               <ul className="swarm-finding-list">
                 {unit.output.keyFindings.map((finding) => (
                   <li key={finding}>{finding}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {unit?.output?.deliverables?.length ? (
+            <div>
+              <div className="swarm-detail-label">Deliverables</div>
+              <ul className="swarm-finding-list">
+                {unit.output.deliverables.map((deliverable) => (
+                  <li key={deliverable}>{deliverable}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {unit?.output?.decisions?.length ? (
+            <div>
+              <div className="swarm-detail-label">Decisions</div>
+              <ul className="swarm-finding-list">
+                {unit.output.decisions.map((decision) => (
+                  <li key={decision}>{decision}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {unit?.output?.risks?.length ? (
+            <div>
+              <div className="swarm-detail-label">Risks</div>
+              <ul className="swarm-finding-list">
+                {unit.output.risks.map((risk) => (
+                  <li key={risk}>{risk}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {unit?.output?.openQuestions?.length ? (
+            <div>
+              <div className="swarm-detail-label">Open questions</div>
+              <ul className="swarm-finding-list">
+                {unit.output.openQuestions.map((question) => (
+                  <li key={question}>{question}</li>
                 ))}
               </ul>
             </div>

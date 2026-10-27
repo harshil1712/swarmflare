@@ -46,15 +46,15 @@ export function SwarmWorkspace({
   });
 
   return (
-    <section className="swarm-workspace" aria-label="Agent swarm workspace">
+    <section className="swarm-workspace" aria-label="Agent company workspace">
       <Surface className="swarm-run-card">
         <div className="swarm-run-card__header">
           <div>
             <div className="swarm-launchpad__eyebrow">
               <BrainIcon size={15} weight="fill" />
-              Agent Swarm
+              Agent Company
             </div>
-            <h4>{run.goal || "Untitled swarm run"}</h4>
+            <h4>{run.goal || "Untitled company run"}</h4>
             <div className="swarm-detail-meta">
               <span>{run.model}</span>
               <span>Started {formatDateTime(run.startedAt)}</span>
@@ -62,6 +62,16 @@ export function SwarmWorkspace({
                 <span>Completed {formatDateTime(run.completedAt)}</span>
               )}
             </div>
+            {run.repository && (
+              <div className="swarm-detail-meta">
+                <span>Repo {run.repository.name}</span>
+                <span>Status {run.repository.status}</span>
+                {run.repository.defaultBranch && (
+                  <span>Branch {run.repository.defaultBranch}</span>
+                )}
+                <span>Source {run.repository.source.kind}</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Badge variant={getStatusVariant(run.status)}>{run.status}</Badge>
@@ -103,10 +113,10 @@ export function SwarmWorkspace({
         <Surface className="swarm-map-card">
           <div className="swarm-map-card__header">
             <div>
-              <div className="swarm-detail-label">Worker map</div>
-              <h3>Parallel specialist work</h3>
+              <div className="swarm-detail-label">Employee map</div>
+              <h3>Parallel company work</h3>
             </div>
-            <Badge variant="secondary">{run.workUnits.length} units</Badge>
+            <Badge variant="secondary">{run.workUnits.length} employees</Badge>
           </div>
           <div className="swarm-worker-grid">
             {sortedUnits.map((unit) => (

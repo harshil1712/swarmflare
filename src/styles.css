@@ -75,6 +75,10 @@ html[data-mode="dark"] {
   z-index: 1;
 }
 
+.swarm-header {
+  z-index: 20;
+}
+
 .swarm-header > div {
   width: 100%;
   max-width: 1480px;

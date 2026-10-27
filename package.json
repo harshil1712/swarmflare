@@ -2,7 +2,7 @@
   "name": "swarmflare",
   "version": "1.0.0",
   "private": true,
-  "description": "Cloudflare-native demo for parallel AI agent swarms",
+  "description": "Cloudflare-native demo for an agent company powered by parallel AI employees",
   "keywords": [
     "agents",
     "ai",
@@ -26,6 +26,7 @@
     "@streamdown/code": "^1.1.1",
     "agents": "^0.13.2",
     "ai": "^6.0.188",
+    "isomorphic-git": "^1.38.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "streamdown": "^2.5.0",
